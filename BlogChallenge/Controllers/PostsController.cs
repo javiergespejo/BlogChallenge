@@ -150,6 +150,8 @@ namespace BlogChallenge.Controllers
                     }
                     
                     _context.Post.Update(post);
+                    if (post.Image == null)
+                        _context.Entry(post).Property(x => x.ImageName).IsModified = false;
                     await _context.SaveChangesAsync();
                 }
                 catch (DbUpdateConcurrencyException)
