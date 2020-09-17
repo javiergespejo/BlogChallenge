@@ -10,6 +10,8 @@ namespace BlogChallenge.Models
     {
         public int Id { get; set; }
         [Required]
+        [StringLength(15)]
+        [Display(Name = "Category")]
         public string Name { get; set; }
     }
 }

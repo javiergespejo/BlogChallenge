@@ -7,49 +7,52 @@ using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using BlogChallenge.Data;
 using BlogChallenge.Models;
+using Microsoft.AspNetCore.Hosting;
+using System.IO;
+using Microsoft.AspNetCore.Http;
 
 namespace BlogChallenge.Controllers
 {
     public class PostsController : Controller
     {
         private readonly ApplicationDbContext _context;
+        private readonly IWebHostEnvironment _hostEnvironment;
 
-        public PostsController(ApplicationDbContext context)
+        public PostsController(IWebHostEnvironment hostEnvironment, ApplicationDbContext context)
         {
+            this._hostEnvironment = hostEnvironment;
             _context = context;
         }
 
         // GET: Posts
-        public async Task<IActionResult> Index()
+        public async Task<IActionResult> Index(string sortOrder)
         {
-            var applicationDbContext = _context.Post.Include(p => p.Category);
-            return View(await applicationDbContext.ToListAsync());
+
+            var posts = await _context.Post.OrderByDescending(p => p.CreationDate).ToListAsync();
+
+            return View(posts);
         }
 
         // GET: Posts/Details/5
         public async Task<IActionResult> Details(int? id)
         {
-            if (id == null)
-            {
-                return NotFound();
-            }
-
-            var post = await _context.Post
-                .Include(p => p.Category)
-                .FirstOrDefaultAsync(m => m.Id == id);
+            if (id == null) return View("Error");
+            var post = await _context.Post.FindAsync(id);
             if (post == null)
             {
-                return NotFound();
+                ShowError("view");
+                return View("Error");
             }
-
+            var category = _context.Post.Where(p => p.Id == id).Select(p => p.Category.Name).FirstOrDefault();
+            ViewBag.category = category;
             return View(post);
         }
 
         // GET: Posts/Create
         public IActionResult Create()
         {
-            ViewData["CategoryId"] = new SelectList(_context.Category, "Id", "Id");
-            return View();
+            ViewData["CategoryId"] = new SelectList(_context.Category, "Id", "Name");
+            return View(new Post { CreationDate = DateTime.Now });
         }
 
         // POST: Posts/Create
@@ -57,16 +60,40 @@ namespace BlogChallenge.Controllers
         // more details, see http://go.microsoft.com/fwlink/?LinkId=317598.
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Create([Bind("Id,Title,Content,Image,CategoryId,CreationDate")] Post post)
+        public async Task<IActionResult> Create([Bind("Id,Title,Content,Image,ImageName,CategoryId")] Post post)
         {
-            if (ModelState.IsValid)
+            try
             {
-                _context.Add(post);
-                await _context.SaveChangesAsync();
-                return RedirectToAction(nameof(Index));
+                if (ModelState.IsValid)
+                {
+                    post.CreationDate = DateTime.UtcNow;
+                    //Save image to wwwroot/image
+                    string wwwRootPath = _hostEnvironment.WebRootPath;
+                    string fileName = Path.GetFileNameWithoutExtension(post.Image.FileName);
+                    string extension = Path.GetExtension(post.Image.FileName);
+                    post.ImageName = fileName = fileName + DateTime.Now.ToString("yymmssfff") + extension;
+                    string path = Path.Combine(wwwRootPath + "/Image/", fileName);
+                    using (var fileStream = new FileStream(path, FileMode.Create))
+                    {
+                        await post.Image.CopyToAsync(fileStream);
+                    }
+                    
+                    _context.Add(post);
+                    await _context.SaveChangesAsync();
+                    return RedirectToAction(nameof(Index));
+                }
             }
-            ViewData["CategoryId"] = new SelectList(_context.Category, "Id", "Id", post.CategoryId);
-            return View(post);
+            catch (DbUpdateException /* ex */)
+            {
+                //Log the error (uncomment ex variable name and write a log.
+                ModelState.AddModelError("", "Unable to save changes. " +
+                    "Try again, and if the problem persists " +
+                    "see your system administrator.");
+            }
+
+                ViewData["CategoryId"] = new SelectList(_context.Category, "Id", "Id", post.CategoryId);
+
+                return View(post);
         }
 
         // GET: Posts/Edit/5
@@ -80,9 +107,11 @@ namespace BlogChallenge.Controllers
             var post = await _context.Post.FindAsync(id);
             if (post == null)
             {
-                return NotFound();
+                ShowError("edit");
+                return View("Error");
             }
-            ViewData["CategoryId"] = new SelectList(_context.Category, "Id", "Id", post.CategoryId);
+
+            ViewData["CategoryId"] = new SelectList(_context.Category, "Id", "Name");
             return View(post);
         }
 
@@ -91,7 +120,7 @@ namespace BlogChallenge.Controllers
         // more details, see http://go.microsoft.com/fwlink/?LinkId=317598.
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Edit(int id, [Bind("Id,Title,Content,Image,CategoryId,CreationDate")] Post post)
+        public async Task<IActionResult> Edit(int id, [Bind("Id,Title,Content,Image,ImagenName,CategoryId")] Post post)
         {
             if (id != post.Id)
             {
@@ -102,14 +131,35 @@ namespace BlogChallenge.Controllers
             {
                 try
                 {
-                    _context.Update(post);
+                    var postDate = await _context.Post.FindAsync(id);
+                    post.CreationDate = postDate.CreationDate;
+                    _context.Entry(postDate).State = EntityState.Detached;
+
+                    //Save image to wwwroot/image                    
+                    if (post.Image != null)
+                    {
+                        string wwwRootPath = _hostEnvironment.WebRootPath;
+                        string fileName = Path.GetFileNameWithoutExtension(post.Image.FileName);
+                        string extension = Path.GetExtension(post.Image.FileName);
+                        post.ImageName = fileName = fileName + DateTime.Now.ToString("yymmssfff") + extension;
+                        string path = Path.Combine(wwwRootPath + "/Image/", fileName);
+                        using (var fileStream = new FileStream(path, FileMode.Create))
+                        {
+                            await post.Image.CopyToAsync(fileStream);
+                        }
+                    }
+                    
+                    _context.Post.Update(post);
+                    if (post.Image == null)
+                        _context.Entry(post).Property(x => x.ImageName).IsModified = false;
                     await _context.SaveChangesAsync();
                 }
                 catch (DbUpdateConcurrencyException)
                 {
                     if (!PostExists(post.Id))
                     {
-                        return NotFound();
+                        ShowError("edit");
+                        return View("Error");
                     }
                     else
                     {
@@ -133,10 +183,15 @@ namespace BlogChallenge.Controllers
             var post = await _context.Post
                 .Include(p => p.Category)
                 .FirstOrDefaultAsync(m => m.Id == id);
+
             if (post == null)
             {
-                return NotFound();
+                ShowError("delete");
+                return View("Error");
             }
+
+            var category = _context.Post.Where(p => p.Id == id).Select(p => p.Category.Name).FirstOrDefault();
+            ViewBag.category = category;
 
             return View(post);
         }
@@ -147,6 +202,20 @@ namespace BlogChallenge.Controllers
         public async Task<IActionResult> DeleteConfirmed(int id)
         {
             var post = await _context.Post.FindAsync(id);
+
+            if (post == null)
+            {
+                ShowError("delete");
+                return View("Error");
+            }
+
+            //Delete imiage from wwwroot/image
+            var imagePath = Path.Combine(_hostEnvironment.WebRootPath, "image", post.ImageName);
+            if (System.IO.File.Exists(imagePath))
+            {
+                System.IO.File.Delete(imagePath);
+            }
+            //Delete the record
             _context.Post.Remove(post);
             await _context.SaveChangesAsync();
             return RedirectToAction(nameof(Index));
@@ -155,6 +224,13 @@ namespace BlogChallenge.Controllers
         private bool PostExists(int id)
         {
             return _context.Post.Any(e => e.Id == id);
+        }
+
+        private void ShowError(string actionDetail)
+        {
+            ViewBag.ErrorTitle = "The post was not found";
+            ViewBag.ErrorMessage = $"The post you want to {actionDetail} was deleted or no longer exists." +
+                "Check the URL post.";
         }
     }
 }

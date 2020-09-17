@@ -1,6 +1,8 @@
-﻿using System;
+﻿using Microsoft.AspNetCore.Http;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -10,14 +12,19 @@ namespace BlogChallenge.Models
     {
         public int Id { get; set; }
         [Required]
+        [StringLength(100)]
         public string Title { get; set; }
         [Required]
         public string Content { get; set; }
+        [NotMapped]
+        public IFormFile Image { get; set; }
+        public string ImageName { get; set; }
         [Required]
-        public byte[] Image { get; set; }
-        [Required]
+        [Display(Name = "Category")]
         public int CategoryId { get; set; }
         public Category Category { get; set; }
+        [Required]
+        [Display(Name = "Date")]
         [DisplayFormat(DataFormatString = "{0:yyyy-MM-dd}", ApplyFormatInEditMode = true)]
         public DateTime CreationDate { get; set; }
     }
