@@ -12,6 +12,7 @@ namespace BlogChallenge.Models
     {
         public int Id { get; set; }
         [Required]
+        [StringLength(100)]
         public string Title { get; set; }
         [Required]
         public string Content { get; set; }
@@ -22,6 +23,7 @@ namespace BlogChallenge.Models
         [Display(Name = "Category")]
         public int CategoryId { get; set; }
         public Category Category { get; set; }
+        [Required]
         [Display(Name = "Date")]
         [DisplayFormat(DataFormatString = "{0:yyyy-MM-dd}", ApplyFormatInEditMode = true)]
         public DateTime CreationDate { get; set; }
