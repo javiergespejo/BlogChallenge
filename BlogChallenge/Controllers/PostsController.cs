@@ -7,7 +7,6 @@ using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using BlogChallenge.Data;
 using BlogChallenge.Models;
-using BlogChallenge.DTO;
 using Microsoft.AspNetCore.Hosting;
 using System.IO;
 using Microsoft.AspNetCore.Http;
@@ -37,9 +36,13 @@ namespace BlogChallenge.Controllers
         // GET: Posts/Details/5
         public async Task<IActionResult> Details(int? id)
         {
-            if (id == null) return NotFound();
+            if (id == null) return View("Error");
             var post = await _context.Post.FindAsync(id);
-            if (post == null) return NotFound();
+            if (post == null)
+            {
+                ShowError("view");
+                return View("Error");
+            }
             var category = _context.Post.Where(p => p.Id == id).Select(p => p.Category.Name).FirstOrDefault();
             ViewBag.category = category;
             return View(post);
@@ -104,7 +107,8 @@ namespace BlogChallenge.Controllers
             var post = await _context.Post.FindAsync(id);
             if (post == null)
             {
-                return NotFound();
+                ShowError("edit");
+                return View("Error");
             }
 
             ViewData["CategoryId"] = new SelectList(_context.Category, "Id", "Name");
@@ -130,7 +134,7 @@ namespace BlogChallenge.Controllers
                     var postDate = await _context.Post.FindAsync(id);
                     post.CreationDate = postDate.CreationDate;
                     _context.Entry(postDate).State = EntityState.Detached;
-                    
+
                     //Save image to wwwroot/image                    
                     if (post.Image != null)
                     {
@@ -152,7 +156,8 @@ namespace BlogChallenge.Controllers
                 {
                     if (!PostExists(post.Id))
                     {
-                        return NotFound();
+                        ShowError("edit");
+                        return View("Error");
                     }
                     else
                     {
@@ -176,10 +181,13 @@ namespace BlogChallenge.Controllers
             var post = await _context.Post
                 .Include(p => p.Category)
                 .FirstOrDefaultAsync(m => m.Id == id);
+
             if (post == null)
             {
-                return NotFound();
+                ShowError("delete");
+                return View("Error");
             }
+
             var category = _context.Post.Where(p => p.Id == id).Select(p => p.Category.Name).FirstOrDefault();
             ViewBag.category = category;
 
@@ -192,6 +200,12 @@ namespace BlogChallenge.Controllers
         public async Task<IActionResult> DeleteConfirmed(int id)
         {
             var post = await _context.Post.FindAsync(id);
+
+            if (post == null)
+            {
+                ShowError("delete");
+                return View("Error");
+            }
 
             //Delete imiage from wwwroot/image
             var imagePath = Path.Combine(_hostEnvironment.WebRootPath, "image", post.ImageName);
@@ -208,6 +222,13 @@ namespace BlogChallenge.Controllers
         private bool PostExists(int id)
         {
             return _context.Post.Any(e => e.Id == id);
+        }
+
+        private void ShowError(string actionDetail)
+        {
+            ViewBag.ErrorTitle = "The post was not found";
+            ViewBag.ErrorMessage = $"The post you want to {actionDetail} was deleted or no longer exists." +
+                "Check the URL post.";
         }
     }
 }
