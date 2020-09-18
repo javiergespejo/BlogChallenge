@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace BlogChallenge.Data
@@ -16,5 +17,11 @@ namespace BlogChallenge.Data
 
         public DbSet<Post> Post { get; set; }
         public DbSet<Category> Category{ get; set; }
+
+        protected override void OnModelCreating(ModelBuilder builder)
+        {
+            base.OnModelCreating(builder);
+            builder.Entity<Post>().HasQueryFilter(p => !p.IsDeleted);
+        }
     }
 }
