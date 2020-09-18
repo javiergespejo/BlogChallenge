@@ -202,22 +202,22 @@ namespace BlogChallenge.Controllers
         public async Task<IActionResult> DeleteConfirmed(int id)
         {
             var post = await _context.Post.FindAsync(id);
-
             if (post == null)
             {
                 ShowError("delete");
                 return View("Error");
             }
 
-            //Delete imiage from wwwroot/image
+            //Delete image from wwwroot/image
             var imagePath = Path.Combine(_hostEnvironment.WebRootPath, "image", post.ImageName);
             if (System.IO.File.Exists(imagePath))
             {
                 System.IO.File.Delete(imagePath);
             }
-            //Delete the record
-            _context.Post.Remove(post);
+            _context.Post.Attach(post);
+            post.IsDeleted = true;
             await _context.SaveChangesAsync();
+
             return RedirectToAction(nameof(Index));
         }
 

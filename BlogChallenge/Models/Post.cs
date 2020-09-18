@@ -27,5 +27,6 @@ namespace BlogChallenge.Models
         [Display(Name = "Date")]
         [DisplayFormat(DataFormatString = "{0:yyyy-MM-dd}", ApplyFormatInEditMode = true)]
         public DateTime CreationDate { get; set; }
+        public bool IsDeleted { get; set; }
     }
 }
